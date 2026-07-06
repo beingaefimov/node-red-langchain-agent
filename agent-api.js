@@ -1,50 +1,10 @@
-'use strict';
+import { createAgent } from 'langchain';
+import { MemorySaver } from '@langchain/langgraph';
+import { randomUUID } from 'crypto';
 
-const { AgentExecutor, createToolCallingAgent } = require('langchain/agents');
-const {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
-  SystemMessagePromptTemplate,
-  MessagesPlaceholder
-} = require('@langchain/core/prompts');
-const { BufferMemory, ChatMessageHistory } = require('langchain/memory');
-const { randomUUID } = require('crypto');
+const memoryCheckpointer = new MemorySaver();
 
-const DEFAULT_REACT_TEMPLATE = `Answer the following questions as best you can. You have access to the following tools:
-
-{tools}
-
-Use the following format:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
-
-Begin!
-
-Question: {input}
-Thought:`;
-
-// `langchain-agent-api` — config node that registers an async HTTP endpoint
-// under the configured route. Two response modes:
-//   - JSON     (default):  one final JSON object with {output, intermediateSteps, …}
-//   - SSE      (stream):   text/event-stream with typed events:
-//                           event: token       data: {delta: "..."}        - final-answer tokens
-//                           event: tool_call   data: {tool, input}         - ReAct step
-//                           event: tool_result data: {tool, output}        - ReAct step
-//                           event: step        data: {n, label}            - coarse checkpoint
-//                           event: final       data: {output, steps, ms}   - end of run
-//                           event: error       data: {message}             - terminal error
-// Set `stream: true` in the POST body to opt in.
-// As a config node it has no inputs/outputs and stores the route + tool
-// wiring in the flow. Other nodes reference it via the typed `defaults` of
-// their own fields (see `langchain-agent` -> `agentApi`)
-module.exports = function (RED) {
+export default function (RED) {
   function AgentApiNode(config) {
     RED.nodes.createNode(this, config);
     const node = this;
@@ -57,62 +17,45 @@ module.exports = function (RED) {
     node.toolNodes = (config.toolNodes || '').split(',').map((s) => s.trim()).filter(Boolean);
     node.apiKey = config.apiKey;
 
-    function buildExecutor(req, sessionId) {
+    async function buildExecutor(req, sessionId) {
       const llmNode = RED.nodes.getNode(node.llmNode);
       if (!llmNode) throw new Error('agent-api: llmNode not configured');
-      // `getLlm` may be async if it pulls OAuth2 bearer
-      return Promise.resolve(llmNode.getLlm(req.body || {})).then((llm) => {
-        const tools = [];
-        for (const id of node.toolNodes) {
-          const tNode = RED.nodes.getNode(id);
-          if (!tNode) continue;
-          if (typeof tNode.getTool === 'function') {
-            tools.push(tNode.getTool());
+      const llm = await llmNode.getLlm(req.body || {});
+      
+      const tools = [];
+      const mcpClientsToClose = [];
+      
+      for (const id of node.toolNodes) {
+        const tNode = RED.nodes.getNode(id);
+        if (!tNode) continue;
+        if (typeof tNode.getTool === 'function') {
+          const t = await tNode.getTool();
+          if (Array.isArray(t)) {
+            tools.push(...t);
+            if (tNode._mcpClient) mcpClientsToClose.push(tNode._mcpClient);
+          } else {
+            tools.push(t);
           }
         }
+      }
 
-        const prompt = ChatPromptTemplate.fromMessages([
-          SystemMessagePromptTemplate.fromTemplate(node.systemMessage),
-          new MessagesPlaceholder({ variableName: 'chat_history', optional: true }),
-          HumanMessagePromptTemplate.fromTemplate('{input}'),
-          new MessagesPlaceholder({ variableName: 'agent_scratchpad', optional: true })
-        ]);
-
-        let memory;
-        if (sessionId) {
-          const history = node.context().global.get(`langchain_mem_${sessionId}`) || new ChatMessageHistory();
-          node.context().global.set(`langchain_mem_${sessionId}`, history);
-          memory = new BufferMemory({ 
-            chatHistory: history, 
-            returnMessages: true, 
-            memoryKey: 'chat_history',
-            inputKey: 'input',
-            outputKey: 'output'
-          });
-        }
-
-        const agent = createToolCallingAgent({ llm, tools, prompt });
-        return new AgentExecutor({
-          agent,
-          tools,
-          memory,
-          maxIterations: node.maxIterations,
-          maxExecutionTime: node.maxExecutionTime,
-          returnIntermediateSteps: node.returnIntermediateSteps || true,
-          handleParsingErrors: true,
-        });
+      const agent = createAgent({
+        model: llm,
+        tools,
+        systemPrompt: node.systemMessage,
+        checkpointer: memoryCheckpointer
       });
+
+      return { agent, mcpClientsToClose };
     }
 
-    /** Single source of truth: `executor.streamEvents({input, version: 'v1'})`.
-     * Yields the full event surface of the ReAct loop without re-invoking
-     * the LLM */
-    async function streamExecutor(executor, input, res, requestId) {
+    async function streamExecutor(agent, input, res, requestId, sessionId, mcpClientsToClose) {
       const started = Date.now();
       let finalOutput = '';
       const steps = [];
       let stepN = 0;
       let aborted = false;
+      
       const sseEvent = (event, data) => {
         if (res.writableEnded || aborted) return;
         res.write(`event: ${event}\n`);
@@ -123,11 +66,21 @@ module.exports = function (RED) {
       sseEvent('start', { requestId, input, ts: started });
 
       try {
-        const eventStream = await executor.streamEvents({ input, version: 'v1' });
+        const config = {
+          configurable: { thread_id: sessionId || 'default' },
+          recursion_limit: node.maxIterations + 1, 
+          timeout: node.maxExecutionTime * 1000
+        };
+        
+        const eventStream = await agent.streamEvents(
+          { messages: [{ role: 'user', content: input }] },
+          { version: 'v2', ...config }
+        );
+
         for await (const ev of eventStream) {
           if (aborted) break;
 
-          if (ev.event === 'on_llm_stream') {
+          if (ev.event === 'on_chat_model_stream' || ev.event === 'on_llm_stream') {
             const chunk = ev.data && ev.data.chunk;
             if (!chunk) continue;
             const piece = chunk.content || chunk.text || (typeof chunk === 'string' ? chunk : null);
@@ -148,13 +101,9 @@ module.exports = function (RED) {
             steps.push({ type: 'tool_call', tool: ev.name, input: input_ });
           } else if (ev.event === 'on_tool_end') {
             const out = ev.data && (ev.data.output || ev.data.result);
-            const text = typeof out === 'string'
-              ? out
-              : (out && out.toString ? out.toString() : JSON.stringify(out));
+            const text = typeof out === 'string' ? out : (out && out.toString ? out.toString() : JSON.stringify(out));
             sseEvent('tool_result', { step: stepN, tool: ev.name, output: text });
             steps.push({ type: 'tool_result', tool: ev.name, output: text });
-          } else if (ev.event === 'on_chain_end' && ev.name === 'AgentExecutor') {
-            break;
           }
         }
 
@@ -168,21 +117,21 @@ module.exports = function (RED) {
         sseEvent('error', { requestId, message: err.message, stack: err.stack });
       } finally {
         if (!res.writableEnded) res.end();
+        for (const c of mcpClientsToClose) {
+          c.close().catch(() => {});
+        }
       }
     }
 
-    // Mount the HTTP route exactly once. Multiple `langchain-agent-api`
-    // config nodes register additional routes; we track them in a Set
-    // SSE mode
     if (!RED._langchainApiMounted) {
       RED.httpNode.post('/langchain-agent/ping', (_req, res) => {
-        res.json({ ok: true, name: 'node-red-contrib-langchain-agent', version: '0.1.0' });
+        res.json({ ok: true, name: 'node-red-contrib-langchain-agent', version: '1.0.0' });
       });
       RED._langchainApiMounted = true;
     }
+    
     if (!RED._langchainApiRoutes) RED._langchainApiRoutes = new Set();
     if (RED._langchainApiRoutes.has(node.route)) {
-      // duplicate route - refuse to mount to avoid double-handling
       node.warn(`agent-api: route ${node.route} already registered by another agent-api node`);
     } else {
       RED._langchainApiRoutes.add(node.route);
@@ -194,35 +143,49 @@ module.exports = function (RED) {
         const stream = body.stream === true || body.stream === 'true';
 
         if (node.apiKey && req.headers.authorization !== `Bearer ${node.apiKey}`) {
-          res.status(401).json({ error: 'unauthorized', requestId });
-          return;
+          res.status(401).json({ error: 'unauthorized', requestId }); return;
         }
-
         if (!input) {
-          res.status(400).json({ error: 'input is required', requestId });
-          return;
+          res.status(400).json({ error: 'input is required', requestId }); return;
         }
 
         if (!stream) {
           try {
-            const executor = await buildExecutor(req, sessionId);
+            const { agent, mcpClientsToClose } = await buildExecutor(req, sessionId);
             setImmediate(async () => {
               const started = Date.now();
               node.status({ text: 'reasoning...', fill: 'yellow', shape: 'ring' });
               try {
-                const result = await executor.invoke({ input });
+                const config = {
+                  configurable: { thread_id: sessionId || 'default' },
+                  recursion_limit: node.maxIterations + 1,
+                  timeout: node.maxExecutionTime * 1000
+                };
+                
+                const result = await agent.invoke(
+                  { messages: [{ role: 'user', content: input }] },
+                  config
+                );
+                
+                const lastMsg = result.messages[result.messages.length - 1];
+                const outputText = typeof lastMsg.content === 'string' 
+                  ? lastMsg.content 
+                  : JSON.stringify(lastMsg.content);
+
                 node.status({ text: `done in ${((Date.now() - started) / 1000).toFixed(1)}s`, fill: 'green', shape: 'dot' });
                 res.json({
                   requestId,
-                  input: result.input,
-                  output: result.output,
-                  intermediateSteps: node.returnIntermediateSteps ? result.intermediateSteps : undefined,
+                  input,
+                  output: outputText,
+                  intermediateSteps: node.returnIntermediateSteps ? result.messages : undefined,
                   durationMs: Date.now() - started,
                 });
               } catch (err) {
                 node.status({ text: 'error', fill: 'red', shape: 'dot' });
                 node.error(err);
                 res.status(500).json({ requestId, error: err.message });
+              } finally {
+                for (const c of mcpClientsToClose) c.close().catch(() => {});
               }
             });
           } catch (err) {
@@ -230,16 +193,17 @@ module.exports = function (RED) {
           }
           return;
         }
+        
         // SSE mode
         try {
-          const executor = await buildExecutor(req, sessionId);
+          const { agent, mcpClientsToClose } = await buildExecutor(req, sessionId);
           res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
           res.setHeader('Cache-Control', 'no-cache, no-transform');
           res.setHeader('Connection', 'keep-alive');
           res.setHeader('X-Accel-Buffering', 'no');
           res.flushHeaders && res.flushHeaders();
           node.status({ text: 'streaming...', fill: 'yellow', shape: 'ring' });
-          setImmediate(() => streamExecutor(executor, input, res, requestId).then(() => {
+          setImmediate(() => streamExecutor(agent, input, res, requestId, sessionId, mcpClientsToClose).then(() => {
             node.status({ text: 'streamed', fill: 'green', shape: 'dot' });
           }));
         } catch (err) {
@@ -248,8 +212,6 @@ module.exports = function (RED) {
       });
     }
 
-    
-    // Optional companion GET endpoint for keep-alive / health checks
     if (!RED._langchainApiRoutes.has(node.route + '/events')) {
       RED._langchainApiRoutes.add(node.route + '/events');
       RED.httpNode.get(node.route + '/events', (req, res) => {
@@ -274,8 +236,5 @@ module.exports = function (RED) {
     });
   }
 
-  // Config node: no inputs/outputs, palette category is `config` for
-  // visibility in the standard tab, but visually distinguishable via
-  // icon/color in the flow
   RED.nodes.registerType('langchain-agent-api', AgentApiNode);
 };

@@ -1,10 +1,6 @@
-'use strict';
+import { DynamicTool } from '@langchain/core/tools';
 
-const { DynamicTool } = require('@langchain/core/tools');
-
-// Custom-function tool sub-node. The user pastes an async function body in the
-// editor; we wrap it in a DynamicTool that the agent can invoke
-module.exports = function (RED) {
+export default function (RED) {
   function ToolFunctionNode(config) {
     RED.nodes.createNode(this, config);
     const node = this;
@@ -24,6 +20,9 @@ module.exports = function (RED) {
         },
       });
     }
+
+    // Expose getTool for agent-api to call directly
+    node.getTool = () => buildTool();
 
     node.on('input', function (msg, send, done) {
       try {

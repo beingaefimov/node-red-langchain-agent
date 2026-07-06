@@ -1,7 +1,8 @@
 {
   "name": "node-red-langchain-agent",
-  "version": "0.1.0",
-  "description": "Full-featured ReAct agent for Node-RED, backed by LangChain AgentExecutor. Sub-nodes for LLM, tools, memory, and vector store.",
+  "version": "1.0.0",
+  "description": "Full-featured ReAct agent for Node-RED, backed by LangGraph createAgent. Sub-nodes for LLM, tools, memory, and vector store.",
+  "type": "module",
   "main": "agent.js",
   "scripts": {
     "test": "node test/agent.spec.js"
@@ -10,6 +11,7 @@
     "node-red",
     "langchain",
     "agent",
+    "langgraph",
     "react",
     "llm"
   ],
@@ -26,13 +28,15 @@
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.11",
-    "@langchain/openai": "^0.3.15",
-    "@langchain/anthropic": "^0.3.14",
-    "langchain": "^0.3.2",
+    "@langchain/core": "^1.2.1",
+    "@langchain/openai": "^1.2.0",
+    "@langchain/anthropic": "^1.2.0",
+    "@langchain/langgraph": "^1.0.0",
+    "@langchain/textsplitters": "^1.0.0",
+    "langchain": "^1.2.1",
     "@modelcontextprotocol/sdk": "^1.11.0",
     "express": "^4.21.2"
   }

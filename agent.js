@@ -1,32 +1,7 @@
-'use strict';
+import { createAgent } from 'langchain';
+import { MemorySaver } from '@langchain/langgraph';
 
-const { AgentExecutor, createToolCallingAgent } = require('langchain/agents');
-const {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
-  SystemMessagePromptTemplate,
-  MessagesPlaceholder
-} = require('@langchain/core/prompts');
-
-const DEFAULT_REACT_TEMPLATE = `Answer the following questions as best you can. You have access to the following tools:
-
-{tools}
-
-Use the following format:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
-
-Begin!
-
-Question: {input}
-Thought:`;
+const memoryCheckpointer = new MemorySaver();
 
 const DEFAULT_SYSTEM_MESSAGE = 'You are a helpful AI assistant. Think step by step and use tools when they help answer the question accurately.';
 
@@ -45,13 +20,9 @@ function getNodeConfig(node) {
 function resolveLlmSubnode(RED, node, msg) {
   if (node.modelNode) {
     const sub = RED.nodes.getNode(node.modelNode);
-    if (sub && typeof sub.getLlm === 'function') {
-      return sub.getLlm(msg);
-    }
+    if (sub && typeof sub.getLlm === 'function') return sub.getLlm(msg);
   }
-  if (msg && msg.langchain && msg.langchain.llm) {
-    return msg.langchain.llm;
-  }
+  if (msg && msg.langchain && msg.langchain.llm) return msg.langchain.llm;
   return null;
 }
 
@@ -60,31 +31,7 @@ function resolveTools(node, msg) {
   if (Array.isArray(msg && msg.langchain && msg.langchain.tools)) {
     tools.push(...msg.langchain.tools);
   }
-  if (Array.isArray(node.toolNodes)) {
-    for (const id of node.toolNodes) {
-      const tNode = RED.nodes.getNode(id);
-      if (tNode && typeof tNode.getTool === 'function') {
-        tools.push(tNode.getTool());
-      }
-    }
-  }
   return tools;
-}
-
-function resolveMemory(msg) {
-  if (msg && msg.langchain && msg.langchain.memory) {
-    return msg.langchain.memory;
-  }
-  return null;
-}
-
-function buildPrompt(cfg) {
-  return ChatPromptTemplate.fromMessages([
-    SystemMessagePromptTemplate.fromTemplate(cfg.systemMessage),
-    new MessagesPlaceholder({ variableName: 'chat_history', optional: true }),
-    HumanMessagePromptTemplate.fromTemplate(cfg.humanMessage || '{input}'),
-    new MessagesPlaceholder({ variableName: 'agent_scratchpad', optional: true })
-  ]);
 }
 
 function inputTextFromMsg(msg) {
@@ -121,28 +68,44 @@ async function runAgent(RED, node, msg) {
   const cfg = getNodeConfig(node);
   const llm = await resolveLlmSubnode(RED, node, msg);
   if (!llm) throw new Error('No chat model configured. Wire a "langchain-chat-model" config or attach msg.langchain.llm.');
+  
   const tools = resolveTools(node, msg);
   if (tools.length === 0) node.warn('Agent is running with zero tools — the LLM will answer from its own knowledge only.');
-  const memory = resolveMemory(msg);
-  const prompt = buildPrompt(cfg);
+  
+  const sessionId = (msg.langchain && msg.langchain.sessionId) || msg.sessionId || 'default';
 
-  const agent = await createToolCallingAgent({ llm, tools, prompt });
-  const executor = new AgentExecutor({
-    agent,
+  const agent = createAgent({
+    model: llm,
     tools,
-    memory: memory || undefined,
-    maxIterations: cfg.maxIterations,
-    maxExecutionTime: cfg.maxExecutionTime,
-    returnIntermediateSteps: cfg.returnIntermediateSteps,
-    handleParsingErrors: cfg.handleParsingErrors,
-    verbose: cfg.verbose,
+    systemPrompt: cfg.systemMessage,
+    checkpointer: memoryCheckpointer
   });
 
   const input = inputTextFromMsg(msg);
-  return executor.invoke({ input });
+  const config = {
+    configurable: { thread_id: sessionId },
+    recursion_limit: cfg.maxIterations + 1,
+    timeout: cfg.maxExecutionTime * 1000
+  };
+
+  const result = await agent.invoke(
+    { messages: [{ role: 'user', content: input }] },
+    config
+  );
+
+  const lastMsg = result.messages[result.messages.length - 1];
+  const outputText = typeof lastMsg.content === 'string' 
+    ? lastMsg.content 
+    : JSON.stringify(lastMsg.content);
+
+  return {
+    input,
+    output: outputText,
+    intermediateSteps: result.messages
+  };
 }
 
-module.exports = function (RED) {
+export default function (RED) {
   function LangChainAgentNode(config) {
     RED.nodes.createNode(this, config);
     const node = this;

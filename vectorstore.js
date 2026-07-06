@@ -1,14 +1,9 @@
-'use strict';
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import { DynamicTool } from '@langchain/core/tools';
 
-const { RecursiveCharacterTextSplitter } = require('langchain/text_splitter');
-
-// RAG tool backed by a JSON-lines corpus in node.context(). Lazily embeds
-// nothing - vector search is by simple cosine of OpenAI embeddings cached on
-// the corpus. Keeps zero extra deps; users can replace this file with a
-// real vector store (Chroma, Pinecone, ...) by editing the class
 class InMemoryVectorStore {
   constructor(docs) {
-    this.docs = docs; // [{ text, embedding }]
+    this.docs = docs; 
   }
   static async fromTexts(texts, embed) {
     const vecs = await embed.embedDocuments(texts);
@@ -30,9 +25,7 @@ class InMemoryVectorStore {
   }
 }
 
-const { DynamicTool } = require('@langchain/core/tools');
-
-module.exports = function (RED) {
+export default function (RED) {
   function VectorStoreNode(config) {
     RED.nodes.createNode(this, config);
     const node = this;
@@ -58,11 +51,11 @@ module.exports = function (RED) {
 
     node.on('input', async function (msg, send, done) {
       try {
-        const cfg = RED.nodes.getNode(node.llmNode);
-        if (!cfg) throw new Error('langchain-vectorstore: missing llmNode');
-        const llm = RED.nodes.getNode(node.llmNode) && RED.nodes.getNode(node.llmNode).getLlm
-          ? RED.nodes.getNode(node.llmNode).getLlm(msg)
-          : msg.langchain && msg.langchain.llm;
+        const llmNodeInstance = RED.nodes.getNode(node.llmNode);
+        const llm = llmNodeInstance && llmNodeInstance.getLlm
+          ? await llmNodeInstance.getLlm(msg)
+          : (msg.langchain && msg.langchain.llm);
+          
         if (!llm) throw new Error('langchain-vectorstore: no embedding-capable model attached');
 
         const action = msg.payload && msg.payload.action;
@@ -74,7 +67,6 @@ module.exports = function (RED) {
           send(msg); done && done(); return;
         }
 
-        // default: expose as a retriever tool
         const store = await buildStore(llm);
         const tool = new DynamicTool({
           name: `${node.collection}_search`,
@@ -84,7 +76,7 @@ module.exports = function (RED) {
             return hits.join('\n\n---\n\n');
           },
         });
-        // also expose via getTool() for direct lookup from agent-api
+        
         node.getTool = () => tool;
         msg.langchain = msg.langchain || {};
         msg.langchain.tools = msg.langchain.tools || [];

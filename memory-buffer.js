@@ -1,44 +1,23 @@
-'use strict';
-
-const { BufferMemory, ChatMessageHistory } = require('langchain/memory');
-
-// Conversation-memory sub-node. Each msg.sessionId gets its own memory slot
-// in RED.context. Pass-through - the agent picks it up via msg.langchain.memory
-module.exports = function (RED) {
+// LangChain v1 uses LangGraph checkpointers for memory.
+// This node now acts as a configuration node that ensures sessionId
+// is properly set for the agent to use the checkpointer.
+export default function (RED) {
   function MemoryBufferNode(config) {
     RED.nodes.createNode(this, config);
     const node = this;
     node.memoryKey = config.memoryKey || 'chat_history';
-    node.humanPrefix = config.humanPrefix || 'Human';
-    node.aiPrefix = config.aiPrefix || 'AI';
     node.maxMessages = parseInt(config.maxMessages || '20', 10);
     node.useContext = config.useContext !== false && config.useContext !== 'false';
-
-    function getMemory(sessionId) {
-      const key = `langchain_mem_${sessionId || 'default'}`;
-      const ctxKey = node.useContext ? RED.util.evaluateNodeProperty(node.memoryKey, 'str', node, {}) : key;
-      const store = node.useContext ? node.context().global : node.context().flow;
-      let history = store.get(key);
-      if (!history) {
-        history = new ChatMessageHistory();
-        store.set(key, history);
-      }
-      return new BufferMemory({
-        chatHistory: history,
-        memoryKey: ctxKey,
-        humanPrefix: node.humanPrefix,
-        aiPrefix: node.aiPrefix,
-        returnMessages: true,
-        maxMsgCount: node.maxMessages,
-        inputKey: 'input',
-        outputKey: 'output'
-      });
-    }
 
     node.on('input', function (msg, send, done) {
       try {
         msg.langchain = msg.langchain || {};
-        msg.langchain.memory = getMemory(msg.sessionId || msg.payload && msg.payload.sessionId);
+        // Pass session ID to the agent via msg.langchain
+        const sessionId = msg.sessionId || (msg.payload && msg.payload.sessionId) || 'default';
+        msg.langchain.sessionId = sessionId;
+        
+        // Note: In LangChain v1, the sliding window and history management
+        // is handled by the LangGraph MemorySaver checkpointer in agent-api/agent
         send(msg);
         done && done();
       } catch (err) {

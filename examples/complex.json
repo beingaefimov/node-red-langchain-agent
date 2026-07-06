@@ -1,0 +1,162 @@
+[
+  {
+    "id": "tab-complex",
+    "type": "tab",
+    "label": "07 Complex Example",
+    "disabled": false,
+    "info": "Комплексный пример, проверяющий все функции пакета:\n1. Базовый запрос и инструменты (калькулятор, время)\n2. Память диалога (через sessionId)\n3. RAG (поиск по базе знаний)\n4. MCP-клиент (доступ к файловой системе /tmp)\n5. SSE-стриминг ответа"
+  },
+  {
+    "id": "cx-cfg",
+    "type": "langchain-config",
+    "name": "complex-llm",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": "0.2",
+    "baseUrl": "http://192.168.1.137:3101/v1",
+    "authType": "apiKey"
+  },
+  {
+    "id": "cx-llm",
+    "type": "langchain-chat-model",
+    "z": "tab-complex",
+    "name": "Complex Chat Model",
+    "configNode": "cx-cfg",
+    "x": 320,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "cx-tool-calc",
+    "type": "langchain-tool-function",
+    "z": "tab-complex",
+    "name": "calculator",
+    "description": "Evaluate a JavaScript arithmetic expression. Input is a single expression like '17 * 23' or 'sqrt(144)'.",
+    "code": "try { return String(Function('return (' + input + ')')()); } catch (e) { return 'Error: ' + e.message; }",
+    "x": 320,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "cx-tool-time",
+    "type": "langchain-tool-function",
+    "z": "tab-complex",
+    "name": "get_time",
+    "description": "Return the current server time as ISO string. Use when the user asks for the current time or date.",
+    "code": "return new Date().toISOString();",
+    "x": 320,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "cx-vs",
+    "type": "langchain-vectorstore",
+    "z": "tab-complex",
+    "name": "kb-complex",
+    "collection": "kb-complex",
+    "chunkSize": 500,
+    "chunkOverlap": 50,
+    "k": 3,
+    "llmNode": "cx-llm",
+    "x": 320,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "cx-mcp",
+    "type": "langchain-mcp-client",
+    "z": "tab-complex",
+    "name": "filesystem",
+    "transport": "stdio",
+    "command": "npx",
+    "args": "-y\n@modelcontextprotocol/server-filesystem\n/tmp",
+    "envPairs": "",
+    "includeFilter": "",
+    "x": 320,
+    "y": 400,
+    "wires": []
+  },
+  {
+    "id": "cx-api",
+    "type": "langchain-agent-api",
+    "name": "complex-agent",
+    "route": "/complex/agent",
+    "systemMessage": "You are a highly capable assistant. You have access to tools: a calculator, get_time, a knowledge base (kb-complex), and filesystem tools. Use them as needed. Remember user details across the conversation. Answer in the user's language.",
+    "maxIterations": 10,
+    "maxExecutionTime": 120,
+    "returnIntermediateSteps": true,
+    "llmNode": "cx-llm",
+    "toolNodes": "cx-tool-calc,cx-tool-time,cx-vs,cx-mcp"
+  },
+  {
+    "id": "cx-inject-seed",
+    "type": "inject",
+    "z": "tab-complex",
+    "name": "Seed KB on deploy",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 140,
+    "y": 500,
+    "wires": [
+      [
+        "cx-fn-seed"
+      ]
+    ]
+  },
+  {
+    "id": "cx-fn-seed",
+    "type": "function",
+    "z": "tab-complex",
+    "name": "Seed KB",
+    "func": "const docs = [\n    'Node-RED is a programming tool for wiring together hardware devices, APIs and online services.',\n    'LangChain is a framework for developing applications powered by language models.',\n    'MCP (Model Context Protocol) is an open protocol that enables seamless integration between LLM applications and external data sources and tools.',\n    'ReAct is a paradigm where LLMs generate reasoning traces and task-specific actions.'\n];\n\n// Нода vectorstore с collection \"kb-complex\" ищет данные в global.get('langchain_vs_kb-complex')\nconst key = 'langchain_vs_kb-complex';\nconst raw = global.get(key) || [];\nglobal.set(key, raw.concat(docs));\n\nmsg.payload = { ok: true, added: docs.length, total: raw.length + docs.length };\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 330,
+    "y": 500,
+    "wires": [
+        [
+        "cx-debug-seed"
+        ]
+    ]
+    },
+  {
+    "id": "cx-debug-seed",
+    "type": "debug",
+    "z": "tab-complex",
+    "name": "Seed Result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 540,
+    "y": 500,
+    "wires": []
+  },
+  {
+    "id": "cx-comment",
+    "type": "comment",
+    "z": "tab-complex",
+    "name": "Как тестировать (curl):",
+    "info": "0. При деплое срабатывает Inject \"Seed KB\", наполняя векторное хранилище. В debug должно появиться {ok:true, added:4}.\n\n1. ИНСТРУМЕНТЫ (Калькулятор и Время):\ncurl -X POST http://localhost:1880/complex/agent \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Сколько будет 25 * 4? И который час на сервере?\"}'\n\n2. ПАМЯТЬ (sessionId):\ncurl -X POST http://localhost:1880/complex/agent \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Меня зовут Иван\",\"sessionId\":\"u1\"}'\ncurl -X POST http://localhost:1880/complex/agent \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Как меня зовут?\",\"sessionId\":\"u1\"}'\n\n3. RAG (База знаний):\ncurl -X POST http://localhost:1880/complex/agent \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Что такое MCP?\"}'\n\n4. MCP (Файловая система /tmp):\ncurl -X POST http://localhost:1880/complex/agent \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Создай файл hello.txt в /tmp с текстом test\"}'\n\n5. SSE СТРИМИНГ:\ncurl -N -X POST http://localhost:1880/complex/agent \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Напиши длинную сказку про кота\",\"stream\":true}'",
+    "x": 160,
+    "y": 620,
+    "wires": []
+  }
+]

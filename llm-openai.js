@@ -1,9 +1,7 @@
-'use strict';
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatAnthropic } from '@langchain/anthropic';
 
-const { ChatOpenAI } = require('@langchain/openai');
-const { ChatAnthropic } = require('@langchain/anthropic');
-
-module.exports = function (RED) {
+export default function (RED) {
   function ChatModelNode(config) {
     RED.nodes.createNode(this, config);
     const node = this;
@@ -14,9 +12,8 @@ module.exports = function (RED) {
 
     node.getLlm = async function (msg) {
       const cfg = RED.nodes.getNode(node.configNode);
-      if (!cfg) {
-        throw new Error('langchain-chat-model: missing langchain-config');
-      }
+      if (!cfg) throw new Error('langchain-chat-model: missing langchain-config');
+      
       const model = node.modelOverride || cfg.model || 'gpt-4o-mini';
       const temperature = parseFloat(node.temperatureOverride ?? cfg.temperature ?? '0');
       const baseUrl = cfg.baseUrl;
@@ -25,17 +22,12 @@ module.exports = function (RED) {
       if (typeof RED._langchainGetBearer === 'function') {
         apiKey = await RED._langchainGetBearer(cfg);
       }
-      if (!apiKey) {
-        apiKey = cfg.credentials && cfg.credentials.apiKey;
-      }
-      if (!apiKey) {
-        throw new Error('langchain-chat-model: no credentials — set API key or complete OAuth2');
-      }
+      if (!apiKey) apiKey = cfg.credentials && cfg.credentials.apiKey;
+      if (!apiKey) throw new Error('langchain-chat-model: no credentials — set API key or complete OAuth2');
 
       if (cfg.provider === 'anthropic') {
         return new ChatAnthropic({
           apiKey,
-          anthropicApiKey: apiKey,
           model: node.modelOverride || cfg.model || 'claude-3-5-sonnet-latest',
           temperature,
         });
@@ -43,9 +35,8 @@ module.exports = function (RED) {
       
       const opts = { 
         apiKey, 
-        openAIApiKey: apiKey, 
         model, 
-        temperature 
+        temperature
       };
       if (baseUrl) opts.configuration = { baseURL: baseUrl };
       return new ChatOpenAI(opts);
