@@ -37,7 +37,8 @@ ReAct-агент для Node-RED на базе **LangChain v1** и **LangGraph**
 ```bash
 cd ~/.node-red
 git clone ...node-red-langchain-agent
-npm install node-red-langchain-agent
+cd node-red-langchain-agent
+npm install
 ```
 
 Перезапустить Node-RED. В палитре появится категория **langchain**.
