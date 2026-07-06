@@ -1,0 +1,66 @@
+<script type="text/javascript">
+  RED.nodes.registerType('langchain-agent-api', {
+    category: 'config', // config tab so users see it alongside their credentials
+    color: '#a4c2f4',
+    defaults: {
+      name: { value: '' },
+      route: { value: '/agent/run' },
+      systemMessage: { value: 'You are a helpful AI assistant. Think step by step and use tools when they help.' },
+      maxIterations: { value: 10, validate: RED.validators.number() },
+      maxExecutionTime: { value: 120, validate: RED.validators.number() },
+      returnIntermediateSteps: { value: false },
+      llmNode: { value: '', type: 'langchain-chat-model', required: true },
+      toolNodes: { value: '' },
+      apiKey: { value: '' }
+    },
+    inputs: 0,
+    outputs: 0,
+    icon: 'font-awesome/fa-rocket',
+    label: function () {
+      return this.name || ('agent-api ' + (this.route || ''));
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="langchain-agent-api">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-route"><i class="fa fa-link"></i> Route</label>
+    <input type="text" id="node-input-route" placeholder="/agent/run">
+  </div>
+  <div class="form-row">
+    <label for="node-input-llmNode"><i class="fa fa-cube"></i> Chat model</label>
+    <input type="text" id="node-input-llmNode">
+  </div>
+  <div class="form-row form-row-wide">
+    <label for="node-input-toolNodes"><i class="fa fa-wrench"></i> Tool sub-nodes (ids)</label>
+    <input type="text" id="node-input-toolNodes" placeholder="comma-separated node ids from tool sub-nodes">
+  </div>
+  <div class="form-row form-row-wide">
+    <label for="node-input-systemMessage"><i class="fa fa-info-circle"></i> System message</label>
+    <textarea id="node-input-systemMessage" style="width:100%;height:80px"></textarea>
+  </div>
+  <div class="form-row">
+    <label for="node-input-maxIterations"><i class="fa fa-repeat"></i> Max iterations</label>
+    <input type="text" id="node-input-maxIterations">
+  </div>
+  <div class="form-row">
+    <label for="node-input-maxExecutionTime"><i class="fa fa-clock-o"></i> Max execution time (s)</label>
+    <input type="text" id="node-input-maxExecutionTime">
+  </div>
+  <div class="form-row">
+    <label for="node-input-returnIntermediateSteps"><i class="fa fa-list-alt"></i> Return intermediate steps</label>
+    <input type="checkbox" id="node-input-returnIntermediateSteps" style="display:inline-block;width:auto;vertical-align:middle;">
+  </div>
+  <div class="form-row">
+    <label for="node-input-apiKey"><i class="fa fa-key"></i> Endpoint bearer (optional)</label>
+    <input type="text" id="node-input-apiKey" placeholder="leave empty for open access">
+  </div>
+  <div class="form-tips">
+    Config node exposed at the route above. POST JSON <code>{input, sessionId, stream?}</code> to it.
+    Set <code>stream=true</code> to receive Server-Sent Events.
+  </div>
+</script>

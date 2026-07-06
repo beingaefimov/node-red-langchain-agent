@@ -1,0 +1,49 @@
+<script type="text/javascript">
+  RED.nodes.registerType('langchain-tool-function', {
+    category: 'langchain',
+    color: '#f9c0c0',
+    defaults: {
+      name: { value: '', required: true },
+      description: { value: '' },
+      code: { value: '// input: string from the LLM, return string for the LLM\nreturn "result for " + input;' }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-wrench',
+    label: function () {
+      return this.name || 'tool';
+    },
+    oneditsave: function () {
+      // ace editor lives in #node-input-code-editor
+      var editor = RED.editor.getEditor('node-input-code-editor');
+      if (editor) {
+        $('#node-input-code').val(editor.getValue());
+      }
+    },
+    oneditprepare: function () {
+      var value = this.code || '';
+      $('#node-input-code').val(value);
+      var ta = $('#node-input-code');
+      ta.css('width', '100%').css('height', '200px').css('font-family', 'monospace');
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="langchain-tool-function">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Tool name</label>
+    <input type="text" id="node-input-name" placeholder="get_weather">
+  </div>
+  <div class="form-row">
+    <label for="node-input-description"><i class="fa fa-info"></i> Description for the LLM</label>
+    <input type="text" id="node-input-description" placeholder="Get current weather for a city">
+  </div>
+  <div class="form-row form-row-wide">
+    <label for="node-input-code"><i class="fa fa-code"></i> Function body (async)</label>
+    <textarea id="node-input-code-editor"></textarea>
+    <input type="hidden" id="node-input-code">
+  </div>
+  <div class="form-tips">
+    Body is wrapped as <code>async () =&gt; { ... }</code>. Receives <code>input</code> as a string from the LLM. Return a string.
+  </div>
+</script>

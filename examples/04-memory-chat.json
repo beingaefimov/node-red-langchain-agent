@@ -1,0 +1,51 @@
+[
+  {
+    "id": "tab-mem",
+    "type": "tab",
+    "label": "04 Memory chat",
+    "disabled": false,
+    "info": "Многоходовой диалог с памятью по sessionId. agent-api сам создаёт BufferMemory если в запросе передан sessionId."
+  },
+  {
+    "id": "cfg-mem",
+    "type": "langchain-config",
+    "name": "my-llm-mem",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": "0.7",
+    "baseUrl": "http://192.168.1.137:3101/v1",
+    "authType": "apiKey"
+  },
+  {
+    "id": "llm-mem",
+    "type": "langchain-chat-model",
+    "z": "tab-mem",
+    "name": "mem-llm",
+    "configNode": "cfg-mem",
+    "x": 280,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "api-mem",
+    "type": "langchain-agent-api",
+    "name": "memory-agent",
+    "route": "/mem/chat",
+    "systemMessage": "You are a friendly chat partner. Remember what the user told you earlier in this conversation.",
+    "maxIterations": 5,
+    "maxExecutionTime": 60,
+    "returnIntermediateSteps": false,
+    "llmNode": "llm-mem",
+    "toolNodes": ""
+  },
+  {
+    "id": "comment-mem",
+    "type": "comment",
+    "z": "tab-mem",
+    "name": "Как тестировать диалог:",
+    "info": "Один и тот же sessionId = один диалог:\n\n# Сообщение 1\ncurl -X POST http://localhost:1880/mem/chat \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Привет! Меня зовут Алексей, я из Берлина.\",\"sessionId\":\"user-1\"}'\n\n# Сообщение 2 (проверка памяти)\ncurl -X POST http://localhost:1880/mem/chat \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Как меня зовут и откуда я?\",\"sessionId\":\"user-1\"}'\n\n# Другой sessionId - другой диалог\ncurl -X POST http://localhost:1880/mem/chat \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"input\":\"Как меня зовут?\",\"sessionId\":\"user-2\"}'\n\nИстория хранится в глобальном контексте Node-RED по ключу langchain_mem_<sessionId>.",
+    "x": 140,
+    "y": 240,
+    "wires": []
+  }
+]

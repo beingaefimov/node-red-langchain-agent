@@ -1,0 +1,107 @@
+[
+  {
+    "id": "tab-rag-demo",
+    "type": "tab",
+    "label": "05 RAG - поиск по базе",
+    "disabled": false,
+    "info": "Агент с векторным хранилищем. Сначала заполни базу (inject + function), потом задавай вопросы, агент сам найдёт релевантные куски."
+  },
+  {
+    "id": "cfg-rag",
+    "type": "langchain-config",
+    "name": "my-llm-rag",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": "0",
+    "baseUrl": "http://192.168.1.137:3101/v1",
+    "authType": "apiKey"
+  },
+  {
+    "id": "llm-rag",
+    "type": "langchain-chat-model",
+    "z": "tab-rag-demo",
+    "name": "rag-llm",
+    "configNode": "cfg-rag",
+    "x": 280,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "vs-rag",
+    "type": "langchain-vectorstore",
+    "z": "tab-rag-demo",
+    "name": "kb-main",
+    "collection": "kb-main",
+    "chunkSize": 500,
+    "chunkOverlap": 50,
+    "k": 3,
+    "llmNode": "llm-rag",
+    "x": 280,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "api-rag",
+    "type": "langchain-agent-api",
+    "name": "rag-agent",
+    "route": "/rag/ask",
+    "systemMessage": "You are a knowledge assistant. Use the kb-main_search tool to look up relevant documents before answering. Always cite which document chunk you used. Answer in the user's language.",
+    "maxIterations": 6,
+    "maxExecutionTime": 90,
+    "returnIntermediateSteps": true,
+    "llmNode": "llm-rag",
+    "toolNodes": "vs-rag"
+  },
+  {
+    "id": "fn-seed",
+    "type": "function",
+    "z": "tab-rag-demo",
+    "name": "seed KB once",
+    "func": "// При срабатывании inject, наполнить базу примерами.\nconst docs = (msg.payload && msg.payload.documents) || [\n    'Node-RED - это инструмент для визуального программирования, основанный на Node.js. Он используется для построения потоков данных (flows) между устройствами IoT, API и онлайн-сервисами.',\n    'LangChain - фреймворк для разработки приложений на базе больших языковых моделей (LLM). Поддерживает chains, agents, RAG, memory.',\n    'MCP (Model Context Protocol) - открытый протокол Anthropic для подключения LLM к внешним инструментам и источникам данных.',\n    'ReAct - паттерн рассуждения, в котором LLM чередует Thought/Action/Observation для решения многошаговых задач.',\n];\nconst vsNode = RED.nodes.getNode('vs-rag');\nif (!vsNode) {\n    node.error('vs-rag нода не найдена');\n    return done();\n}\nconst raw = vsNode.context().global.get('langchain_vs_kb-main') || [];\nvsNode.context().global.set('langchain_vs_kb-main', raw.concat(docs));\nmsg.payload = { ok: true, added: docs.length, total: raw.length + docs.length };\nnode.send(msg);\ndone();\nreturn;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 280,
+    "y": 320,
+    "wires": [["debug-seed"]]
+  },
+  {
+    "id": "debug-seed",
+    "type": "debug",
+    "z": "tab-rag-demo",
+    "name": "seed result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "x": 480,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "inject-seed",
+    "type": "inject",
+    "z": "tab-rag-demo",
+    "name": "Seed KB once",
+    "props": [{ "p": "payload" }],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 0.5,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 130,
+    "y": 320,
+    "wires": [["fn-seed"]]
+  },
+  {
+    "id": "comment-rag",
+    "type": "comment",
+    "z": "tab-rag-demo",
+    "name": "Как пользоваться:",
+    "info": "1. Deploy.\n2. Срабатывает inject 'Seed KB once' -> наполняет базу 4 примерами (см. debug-панель).\n3. Спрашивай (agent-api регистрирует маршрут сам):\n   curl -X POST http://localhost:1880/rag/ask \\\n     -H 'Content-Type: application/json' \\\n     -d '{\"input\":\"Что такое ReAct?\"}'\n\n   curl -X POST http://localhost:1880/rag/ask \\\n     -H 'Content-Type: application/json' \\\n     -d '{\"input\":\"Чем отличается LangChain от MCP?\"}'\n\nВ intermediateSteps увидишь вызов kb-main_search.",
+    "x": 140,
+    "y": 460,
+    "wires": []
+  }
+]

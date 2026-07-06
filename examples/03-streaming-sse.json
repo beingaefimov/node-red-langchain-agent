@@ -1,0 +1,87 @@
+[
+  {
+    "id": "tab-sse-demo",
+    "type": "tab",
+    "label": "03 SSE streaming",
+    "disabled": false,
+    "info": "Стриминг через SSE. agent-api регистрирует POST /stream/agent. Отдельно поднят GET /chat, там HTML-страница с fetch+ReadableStream, которая ходит к /stream/agent. Маршруты разные."
+  },
+  {
+    "id": "cfg-sse",
+    "type": "langchain-config",
+    "name": "my-llm-sse",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": "0.7",
+    "baseUrl": "http://192.168.1.137:3101/v1",
+    "authType": "apiKey"
+  },
+  {
+    "id": "llm-sse",
+    "type": "langchain-chat-model",
+    "z": "tab-sse-demo",
+    "name": "sse-llm",
+    "configNode": "cfg-sse",
+    "x": 280,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "api-sse",
+    "type": "langchain-agent-api",
+    "name": "streaming-agent",
+    "route": "/stream/agent",
+    "systemMessage": "You are a creative assistant. Answer in detail.",
+    "maxIterations": 5,
+    "maxExecutionTime": 120,
+    "returnIntermediateSteps": true,
+    "llmNode": "llm-sse",
+    "toolNodes": ""
+  },
+  {
+    "id": "http-in-html",
+    "type": "http in",
+    "z": "tab-sse-demo",
+    "name": "GET /chat",
+    "url": "/chat",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 140,
+    "y": 220,
+    "wires": [["fn-render"]]
+  },
+  {
+    "id": "fn-render",
+    "type": "function",
+    "z": "tab-sse-demo",
+    "name": "render chat page",
+    "func": "msg.payload = `<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Streaming agent</title>\n<style>body{font-family:system-ui,sans-serif;max-width:780px;margin:30px auto;padding:0 16px;background:#fafafa}#log{background:#1e1e1e;color:#e0e0e0;padding:16px;border-radius:8px;min-height:240px;white-space:pre-wrap;font:14px ui-monospace,monospace}.ev-token{color:#7ec699}.ev-tool{color:#f9c74f}.ev-error{color:#ff6b6b}.ev-final{color:#4cc9f0;font-weight:bold}#in{width:calc(100% - 90px);padding:8px}button{padding:8px 16px}</style>\n</head><body>\n<h2>Streaming agent (SSE)</h2>\n<input id=\"in\" placeholder=\"Спроси что-нибудь…\" autofocus>\n<button id=\"go\">▶</button>\n<pre id=\"log\"></pre>\n<script>\nconst log = document.getElementById('log');\nconst input = document.getElementById('in');\nconst go = document.getElementById('go');\n\nfunction append(html) {\n    log.innerHTML += html + '\\n';\n    log.scrollTop = log.scrollHeight;\n}\n\nasync function ask(q) {\n    log.innerHTML = '';\n    append('<span style=\"color:#888\">→ ' + q + '</span>');\n    let res;\n    try {\n        res = await fetch('/stream/agent', {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify({ input: q, stream: true }),\n        });\n    } catch (e) { append('<span class=\"ev-error\">network error: ' + e.message + '</span>'); return; }\n    if (!res.ok || !res.body) { append('<span class=\"ev-error\">http ' + res.status + '</span>'); return; }\n\n    const reader = res.body.getReader();\n    const dec = new TextDecoder();\n    let buf = '', out = '';\n    while (true) {\n        const { value, done } = await reader.read();\n        if (done) break;\n        buf += dec.decode(value, { stream: true });\n        let idx;\n        while ((idx = buf.indexOf('\\n\\n')) >= 0) {\n            const frame = buf.slice(0, idx); buf = buf.slice(idx + 2);\n            let ev = 'message', data = '';\n            for (const line of frame.split('\\n')) {\n                if (line.startsWith('event:')) ev = line.slice(6).trim();\n                else if (line.startsWith('data:')) data += line.slice(5).trim();\n            }\n            let obj = {};\n            try { obj = JSON.parse(data); } catch (_) {}\n            if (ev === 'token') {\n                out += obj.delta || '';\n                const lines = log.innerHTML.split('\\n');\n                if (lines.length && lines[lines.length-1].startsWith('<span class=\"ev-token\">')) {\n                    lines[lines.length-1] = '<span class=\"ev-token\">' + out + '</span>';\n                    log.innerHTML = lines.join('\\n');\n                } else {\n                    append('<span class=\"ev-token\">' + out + '</span>');\n                }\n                log.scrollTop = log.scrollHeight;\n            } else if (ev === 'tool_call') {\n                append('<span class=\"ev-tool\">[tool] ' + (obj.tool || '?') + '(' + JSON.stringify(obj.input) + ')</span>');\n            } else if (ev === 'tool_result') {\n                append('<span class=\"ev-tool\">[result] ' + String(obj.output || '').slice(0,200) + '</span>');\n            } else if (ev === 'final') {\n                append('<span class=\"ev-final\">✓ done in ' + obj.durationMs + 'ms, ' + (obj.steps||[]).length + ' steps</span>');\n            } else if (ev === 'error') {\n                append('<span class=\"ev-error\">✗ ' + (obj.message || 'error') + '</span>');\n            }\n        }\n    }\n}\ngo.onclick = () => { if (input.value.trim()) ask(input.value.trim()); };\ninput.addEventListener('keydown', e => { if (e.key === 'Enter' && input.value.trim()) ask(input.value.trim()); });\n</script></body></html>`;\nnode.send(msg);\ndone();\nreturn;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 380,
+    "y": 220,
+    "wires": [["http-resp-html"]]
+  },
+  {
+    "id": "http-resp-html",
+    "type": "http response",
+    "z": "tab-sse-demo",
+    "name": "",
+    "statusCode": "",
+    "headers": { "Content-Type": "text/html; charset=utf-8" },
+    "x": 640,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "comment-sse",
+    "type": "comment",
+    "z": "tab-sse-demo",
+    "name": "Как запустить:",
+    "info": "1. Deploy.\n2. Открой в браузере http://localhost:1880/chat\n3. Напиши вопрос, нажми ▶\n4. Ответ будет появляться токен за токеном.\n\nСобытия SSE:\n• token - кусочек ответа LLM\n• tool_call - агент вызвал инструмент\n• tool_result - инструмент вернул результат\n• final - агент закончил (видно durationMs)\n• error - ошибка",
+    "x": 140,
+    "y": 400,
+    "wires": []
+  }
+]

@@ -1,0 +1,112 @@
+[
+    {
+        "id": "tab_simple_agent",
+        "type": "tab",
+        "label": "Simple Agent Flow",
+        "disabled": false,
+        "info": "Пример запуска агента с локальной LLM и кастомным инструментом"
+    },
+    {
+        "id": "cfg_local_llm",
+        "type": "langchain-config",
+        "name": "My Local LLM",
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "temperature": "0",
+        "baseUrl": "http://192.168.1.137:3101/v1",
+        "authType": "apiKey",
+        "credentials": {
+            "apiKey": "sk-dummy-or-your-real-key"
+        }
+    },
+    {
+        "id": "llm_local",
+        "type": "langchain-chat-model",
+        "z": "tab_simple_agent",
+        "name": "Local Chat Model",
+        "configNode": "cfg_local_llm",
+        "x": 300,
+        "y": 160,
+        "wires": [
+            [
+                "tool_math"
+            ]
+        ]
+    },
+    {
+        "id": "tool_math",
+        "type": "langchain-tool-function",
+        "z": "tab_simple_agent",
+        "name": "calculator",
+        "description": "Useful for doing math calculations. Input should be a math expression.",
+        "code": "try { return String(Function('return (' + input + ')')()); } catch (e) { return 'Error: ' + e.message; }",
+        "x": 520,
+        "y": 160,
+        "wires": [
+            [
+                "agent_simple"
+            ]
+        ]
+    },
+    {
+        "id": "agent_simple",
+        "type": "langchain-agent",
+        "z": "tab_simple_agent",
+        "name": "ReAct Agent",
+        "systemMessage": "You are a helpful assistant. Use tools when needed.",
+        "maxIterations": "5",
+        "maxExecutionTime": "60",
+        "returnIntermediateSteps": false,
+        "handleParsingErrors": true,
+        "verbose": false,
+        "x": 750,
+        "y": 160,
+        "wires": [
+            [
+                "debug_output"
+            ]
+        ]
+    },
+    {
+        "id": "inject_trigger",
+        "type": "inject",
+        "z": "tab_simple_agent",
+        "name": "Ask Math Question",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "What is 15 multiplied by 32?",
+        "payloadType": "str",
+        "x": 110,
+        "y": 160,
+        "wires": [
+            [
+                "llm_local"
+            ]
+        ]
+    },
+    {
+        "id": "debug_output",
+        "type": "debug",
+        "z": "tab_simple_agent",
+        "name": "Agent Answer",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload.output",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 960,
+        "y": 160,
+        "wires": []
+    }
+]

@@ -1,0 +1,113 @@
+[
+    {
+        "id": "tab_visual_test",
+        "type": "tab",
+        "label": "Visual MCP Test",
+        "disabled": false,
+        "info": "The long-running operation"
+    },
+    {
+        "id": "cfg_local_llm",
+        "type": "langchain-config",
+        "name": "My Local LLM",
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "temperature": "0",
+        "baseUrl": "http://192.168.1.137:3101/v1",
+        "authType": "apiKey",
+        "credentials": {
+            "apiKey": "sk-dummy-or-your-key"
+        }
+    },
+    {
+        "id": "inject_trigger",
+        "type": "inject",
+        "z": "tab_visual_test",
+        "name": "Trigger Tool Call",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"input\":\"Please use the mcp_trigger-long-running-operation tool to run an operation. Tell me the exact result returned by the tool.\"}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 200,
+        "wires": [
+            [
+                "llm_visual"
+            ]
+        ]
+    },
+    {
+        "id": "llm_visual",
+        "type": "langchain-chat-model",
+        "z": "tab_visual_test",
+        "name": "LLM",
+        "configNode": "cfg_local_llm",
+        "x": 360,
+        "y": 200,
+        "wires": [
+            [
+                "mcp_visual"
+            ]
+        ]
+    },
+    {
+        "id": "mcp_visual",
+        "type": "langchain-mcp-client",
+        "z": "tab_visual_test",
+        "name": "MCP Everything",
+        "transport": "sse",
+        "sseUrl": "http://localhost:3001/sse",
+        "includeFilter": "",
+        "x": 560,
+        "y": 200,
+        "wires": [
+            [
+                "agent_visual"
+            ]
+        ]
+    },
+    {
+        "id": "agent_visual",
+        "type": "langchain-agent",
+        "z": "tab_visual_test",
+        "name": "ReAct Agent",
+        "systemMessage": "You are an assistant that MUST ALWAYS use a tool. Do not answer from your knowledge.",
+        "maxIterations": "5",
+        "maxExecutionTime": "120",
+        "returnIntermediateSteps": true,
+        "handleParsingErrors": true,
+        "verbose": false,
+        "x": 770,
+        "y": 200,
+        "wires": [
+            [
+                "debug_visual"
+            ]
+        ]
+    },
+    {
+        "id": "debug_visual",
+        "type": "debug",
+        "z": "tab_visual_test",
+        "name": "Agent Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 960,
+        "y": 200,
+        "wires": []
+    }
+]

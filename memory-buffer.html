@@ -1,0 +1,47 @@
+<script type="text/javascript">
+  RED.nodes.registerType('langchain-memory-buffer', {
+    category: 'langchain',
+    color: '#d9b8f5',
+    defaults: {
+      name: { value: '' },
+      memoryKey: { value: 'chat_history' },
+      humanPrefix: { value: 'Human' },
+      aiPrefix: { value: 'AI' },
+      maxMessages: { value: 20, validate: RED.validators.number() },
+      useContext: { value: true }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-history',
+    label: function () {
+      return this.name || 'memory';
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="langchain-memory-buffer">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-memoryKey"><i class="fa fa-key"></i> Memory key</label>
+    <input type="text" id="node-input-memoryKey" placeholder="chat_history">
+  </div>
+  <div class="form-row">
+    <label for="node-input-humanPrefix"><i class="fa fa-user"></i> Human prefix</label>
+    <input type="text" id="node-input-humanPrefix" placeholder="Human">
+  </div>
+  <div class="form-row">
+    <label for="node-input-aiPrefix"><i class="fa fa-android"></i> AI prefix</label>
+    <input type="text" id="node-input-aiPrefix" placeholder="AI">
+  </div>
+  <div class="form-row">
+    <label for="node-input-maxMessages"><i class="fa fa-list"></i> Max messages</label>
+    <input type="text" id="node-input-maxMessages">
+  </div>
+  <div class="form-row">
+    <label for="node-input-useContext"><i class="fa fa-globe"></i> Store in global context</label>
+    <input type="checkbox" id="node-input-useContext" style="display:inline-block;width:auto;vertical-align:middle;">
+  </div>
+</script>

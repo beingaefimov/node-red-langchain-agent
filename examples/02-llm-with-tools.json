@@ -1,0 +1,73 @@
+[
+  {
+    "id": "tab-tools",
+    "type": "tab",
+    "label": "02 LLM + tools",
+    "disabled": false,
+    "info": "Агент с двумя function-инструментами: калькулятор и получение времени. Маршрут /tools/agent регистрирует сам langchain-agent-api."
+  },
+  {
+    "id": "cfg-tools",
+    "type": "langchain-config",
+    "name": "my-llm-tools",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": "0",
+    "baseUrl": "http://192.168.1.137:3101/v1",
+    "authType": "apiKey"
+  },
+  {
+    "id": "llm-tools",
+    "type": "langchain-chat-model",
+    "z": "tab-tools",
+    "name": "tools-llm",
+    "configNode": "cfg-tools",
+    "x": 280,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "tool-calc",
+    "type": "langchain-tool-function",
+    "z": "tab-tools",
+    "name": "calculator",
+    "description": "Evaluate a JavaScript arithmetic expression. Use this whenever the user asks for a math calculation. Input is a single expression like '17 * 23' or 'sqrt(144)'.",
+    "code": "try { return String(Function('return (' + input + ')')()); } catch (e) { return 'error: ' + e.message; }",
+    "x": 280,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "tool-time",
+    "type": "langchain-tool-function",
+    "z": "tab-tools",
+    "name": "get_time",
+    "description": "Return the current server time as ISO string. Use when the user asks for the current time or date.",
+    "code": "return new Date().toISOString();",
+    "x": 280,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "api-tools",
+    "type": "langchain-agent-api",
+    "name": "tools-agent",
+    "route": "/tools/agent",
+    "systemMessage": "You are a helpful assistant with access to a calculator and a get_time tool. Use them whenever the user's question requires computation or current time.",
+    "maxIterations": 6,
+    "maxExecutionTime": 60,
+    "returnIntermediateSteps": true,
+    "llmNode": "llm-tools",
+    "toolNodes": "tool-calc,tool-time"
+  },
+  {
+    "id": "comment-tools",
+    "type": "comment",
+    "z": "tab-tools",
+    "name": "Тестовые запросы:",
+    "info": "Математика:\n  curl -X POST http://localhost:1880/tools/agent \\\n    -H 'Content-Type: application/json' \\\n    -d '{\"input\":\"Сколько будет 17 * 23 + 144?\"}'\n\nВремя:\n  curl -X POST http://localhost:1880/tools/agent \\\n    -H 'Content-Type: application/json' \\\n    -d '{\"input\":\"Который сейчас час?\"}'\n\nВ ответе увидишь `intermediateSteps`, там видно, какой tool агент вызывал.",
+    "x": 140,
+    "y": 380,
+    "wires": []
+  }
+]

@@ -1,0 +1,81 @@
+{
+  "langchain-config": {
+    "label": "LangChain config",
+    "description": "Provider, model, and API key for the chat model",
+    "provider": "Provider",
+    "providerOpenAI": "OpenAI (or OpenAI-compatible)",
+    "providerAnthropic": "Anthropic",
+    "model": "Model",
+    "temperature": "Temperature",
+    "baseUrl": "Base URL (OpenAI-compatible only)",
+    "apiKey": "API key",
+    "credentials": "API key"
+  },
+  "langchain-chat-model": {
+    "label": "Chat model",
+    "description": "Expose a chat model to the agent (wires to model input)",
+    "configNode": "Config",
+    "modelOverride": "Model override",
+    "temperatureOverride": "Temperature override"
+  },
+  "langchain-tool-function": {
+    "label": "Function tool",
+    "description": "A custom tool defined by an async function body",
+    "name": "Tool name",
+    "descriptionField": "Description for the LLM",
+    "code": "Function body (input: string) => string"
+  },
+  "langchain-memory-buffer": {
+    "label": "Buffer memory",
+    "description": "Sliding-window conversation memory",
+    "memoryKey": "Memory key",
+    "humanPrefix": "Human prefix",
+    "aiPrefix": "AI prefix",
+    "maxMessages": "Max messages",
+    "useContext": "Store in global context"
+  },
+  "langchain-vectorstore": {
+    "label": "Vector store (RAG tool)",
+    "description": "Add documents / expose a retrieval tool",
+    "collection": "Collection name",
+    "chunkSize": "Chunk size",
+    "chunkOverlap": "Chunk overlap",
+    "k": "Top-K",
+    "llmNode": "Embedding-capable model"
+  },
+  "langchain-mcp-client": {
+    "label": "MCP client tool",
+    "description": "Connect to an MCP server and expose its tools to the agent",
+    "transport": "Transport",
+    "transportStdio": "stdio",
+    "transportSse": "SSE",
+    "command": "Command",
+    "args": "Args (one per line)",
+    "sseUrl": "SSE URL",
+    "envPairs": "Env (KEY=VALUE per line)",
+    "includeFilter": "Tool name allowlist (comma-separated)"
+  },
+  "langchain-agent": {
+    "label": "LangChain agent",
+    "description": "ReAct agent - runs in-band on msg input. Use the API variant for long runs.",
+    "systemMessage": "System message",
+    "humanMessage": "Human message template",
+    "maxIterations": "Max iterations",
+    "maxExecutionTime": "Max execution time (s)",
+    "returnIntermediateSteps": "Return intermediate steps",
+    "handleParsingErrors": "Handle parsing errors",
+    "verbose": "Verbose",
+    "modelNode": "Chat model"
+  },
+  "langchain-agent-api": {
+    "label": "LangChain agent (API)",
+    "description": "Async HTTP agent endpoint. POST {input, sessionId} to its route.",
+    "route": "Route",
+    "systemMessage": "System message",
+    "maxIterations": "Max iterations",
+    "maxExecutionTime": "Max execution time (s)",
+    "returnIntermediateSteps": "Return intermediate steps",
+    "llmNode": "Chat model",
+    "toolNodes": "Tool sub-nodes (ids)"
+  }
+}

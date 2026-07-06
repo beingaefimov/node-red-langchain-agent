@@ -1,0 +1,88 @@
+<script type="text/javascript">
+  RED.nodes.registerType('langchain-agent', {
+    category: 'langchain',
+    color: '#a4c2f4',
+    defaults: {
+      name: { value: '' },
+      // If `agentApi` is set, this node forwards to that config's endpoint
+      // (which already wires its own LLM and tools). The other fields below
+      // are only used when `agentApi` is empty
+      agentApi: { value: '', type: 'langchain-agent-api' },
+      systemMessage: { value: '' },
+      humanMessage: { value: '{input}' },
+      maxIterations: { value: 10, validate: RED.validators.number() },
+      maxExecutionTime: { value: 120, validate: RED.validators.number() },
+      returnIntermediateSteps: { value: false },
+      handleParsingErrors: { value: true },
+      verbose: { value: false },
+      modelNode: { value: '' },
+      toolNodes: { value: '' }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-rocket',
+    label: function () {
+      return this.name || 'agent';
+    },
+    oneditprepare: function () {
+      $('#node-input-agentApi').change(function () {
+        var bound = !!$(this).val();
+        $('#node-input-modelNode').parent().toggle(!bound);
+        $('#node-input-systemMessage').parent().toggle(!bound);
+        $('#node-input-humanMessage').parent().toggle(!bound);
+        $('#node-input-maxIterations').parent().toggle(!bound);
+        $('#node-input-maxExecutionTime').parent().toggle(!bound);
+        $('#node-input-verbose').parent().toggle(!bound);
+        $('#node-input-handleParsingErrors').parent().toggle(!bound);
+      }).trigger('change');
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="langchain-agent">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-agentApi"><i class="fa fa-rocket"></i> Agent-API (config)</label>
+    <input type="text" id="node-input-agentApi" placeholder="bind an existing agent-api">
+  </div>
+  <hr>
+  <div class="form-row">
+    <label for="node-input-modelNode"><i class="fa fa-cube"></i> Chat model</label>
+    <input type="text" id="node-input-modelNode">
+  </div>
+  <div class="form-row form-row-wide">
+    <label for="node-input-systemMessage"><i class="fa fa-info-circle"></i> System message</label>
+    <textarea id="node-input-systemMessage" style="width:100%;height:80px"></textarea>
+  </div>
+  <div class="form-row form-row-wide">
+    <label for="node-input-humanMessage"><i class="fa fa-user"></i> Human message template</label>
+    <input type="text" id="node-input-humanMessage" placeholder="{input}">
+  </div>
+  <div class="form-row">
+    <label for="node-input-maxIterations"><i class="fa fa-repeat"></i> Max iterations</label>
+    <input type="text" id="node-input-maxIterations">
+  </div>
+  <div class="form-row">
+    <label for="node-input-maxExecutionTime"><i class="fa fa-clock-o"></i> Max execution time (s)</label>
+    <input type="text" id="node-input-maxExecutionTime">
+  </div>
+  <div class="form-row">
+    <label for="node-input-returnIntermediateSteps"><i class="fa fa-list-alt"></i> Return intermediate steps</label>
+    <input type="checkbox" id="node-input-returnIntermediateSteps" style="display:inline-block;width:auto;vertical-align:middle;">
+  </div>
+  <div class="form-row">
+    <label for="node-input-handleParsingErrors"><i class="fa fa-exclamation-triangle"></i> Handle parsing errors</label>
+    <input type="checkbox" id="node-input-handleParsingErrors" style="display:inline-block;width:auto;vertical-align:middle;">
+  </div>
+  <div class="form-row">
+    <label for="node-input-verbose"><i class="fa fa-comment"></i> Verbose</label>
+    <input type="checkbox" id="node-input-verbose" style="display:inline-block;width:auto;vertical-align:middle;">
+  </div>
+  <div class="form-tips">
+    If <b>Agent-API</b> is set, the node forwards the request to that
+    endpoint. Otherwise it uses the LLM and tools wired in this flow.
+  </div>
+</script>

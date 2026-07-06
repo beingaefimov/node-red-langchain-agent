@@ -1,0 +1,51 @@
+[
+  {
+    "id": "tab-quickstart",
+    "type": "tab",
+    "label": "01 Quickstart",
+    "disabled": false,
+    "info": "Самый простой сценарий: один curl -> один ответ. Маршрут /agent/run регистрирует сам langchain-agent-api, никаких http in не нужно."
+  },
+  {
+    "id": "cfg-local-llm",
+    "type": "langchain-config",
+    "name": "my-llm",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": "0.2",
+    "baseUrl": "http://192.168.1.137:3101/v1",
+    "authType": "apiKey"
+  },
+  {
+    "id": "llm-quick",
+    "type": "langchain-chat-model",
+    "z": "tab-quickstart",
+    "name": "chat-llm",
+    "configNode": "cfg-local-llm",
+    "x": 280,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "api-quick",
+    "type": "langchain-agent-api",
+    "name": "quickstart-agent",
+    "route": "/agent/run",
+    "systemMessage": "You are a helpful assistant. Answer concisely. Если вопрос на русском — отвечай на русском.",
+    "maxIterations": 5,
+    "maxExecutionTime": 60,
+    "returnIntermediateSteps": false,
+    "llmNode": "llm-quick",
+    "toolNodes": ""
+  },
+  {
+    "id": "comment-quick",
+    "type": "comment",
+    "z": "tab-quickstart",
+    "name": "Как запустить:",
+    "info": "1. Двойной клик по ноде `my-llm` (config), укажи свою модель, baseUrl и API key.\n2. Deploy.\n3. Запрос (agent-api сам поднимает маршрут /agent/run):\n   curl -X POST http://localhost:1880/agent/run \\\n     -H 'Content-Type: application/json' \\\n     -d '{\"input\":\"Привет! Расскажи анекдот.\"}'\n\nЕсли нужен свой URL (например /chat вместо /agent/run) - поменяй поле route у ноды `quickstart-agent`.",
+    "x": 140,
+    "y": 220,
+    "wires": []
+  }
+]

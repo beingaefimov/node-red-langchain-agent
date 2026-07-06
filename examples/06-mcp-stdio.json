@@ -1,0 +1,65 @@
+[
+  {
+    "id": "tab-mcp",
+    "type": "tab",
+    "label": "06 MCP stdio client",
+    "disabled": false,
+    "info": "Агент, который использует инструменты MCP-сервера. В этом примере - MCP filesystem server (запускается через npx как дочерний процесс). Маршрут /mcp/ask регистрирует сам agent-api."
+  },
+  {
+    "id": "cfg-mcp",
+    "type": "langchain-config",
+    "name": "my-llm-mcp",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": "0",
+    "baseUrl": "http://192.168.1.137:3101/v1",
+    "authType": "apiKey"
+  },
+  {
+    "id": "llm-mcp",
+    "type": "langchain-chat-model",
+    "z": "tab-mcp",
+    "name": "mcp-llm",
+    "configNode": "cfg-mcp",
+    "x": 280,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "mcp-fs",
+    "type": "langchain-mcp-client",
+    "z": "tab-mcp",
+    "name": "filesystem",
+    "transport": "stdio",
+    "command": "npx",
+    "args": "-y\n@modelcontextprotocol/server-filesystem\n/tmp",
+    "envPairs": "",
+    "includeFilter": "",
+    "x": 280,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "api-mcp",
+    "type": "langchain-agent-api",
+    "name": "mcp-agent",
+    "route": "/mcp/ask",
+    "systemMessage": "You are a helpful assistant with access to filesystem tools through MCP. Always explain what you're doing before calling a tool.",
+    "maxIterations": 8,
+    "maxExecutionTime": 120,
+    "returnIntermediateSteps": true,
+    "llmNode": "llm-mcp",
+    "toolNodes": "mcp-fs"
+  },
+  {
+    "id": "comment-mcp",
+    "type": "comment",
+    "z": "tab-mcp",
+    "name": "Что тут происходит:",
+    "info": "MCP-client запускает @modelcontextprotocol/server-filesystem через npx.\nArgs = ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'], то есть сервер получает доступ к /tmp.\n\nЕсли npx не установлен или пакет не доступен, то будет ошибка в статусе MCP-ноды.\n\nФайловый сервер MCP может работать медленно, поэтому maxExecutionTime поднят до 120s.\n\nПримеры запросов (agent-api сам регистрирует маршрут):\n  curl -X POST http://localhost:1880/mcp/ask -H 'Content-Type: application/json' -d '{\"input\":\"Какие файлы лежат в /tmp?\"}'\n  curl -X POST http://localhost:1880/mcp/ask -H 'Content-Type: application/json' -d '{\"input\":\"Создай файл /tmp/hello.txt с текстом hi\"}'",
+    "x": 140,
+    "y": 320,
+    "wires": []
+  }
+]

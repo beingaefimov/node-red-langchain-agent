@@ -1,0 +1,66 @@
+<script type="text/javascript">
+  RED.nodes.registerType('langchain-mcp-client', {
+    category: 'langchain',
+    color: '#b8e0f5',
+    defaults: {
+      name: { value: '' },
+      transport: { value: 'stdio' },
+      command: { value: '' },
+      args: { value: '' },
+      sseUrl: { value: '' },
+      envPairs: { value: '' },
+      includeFilter: { value: '' }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-plug',
+    label: function () {
+      var n = this.name || this.command || this.sseUrl || 'mcp';
+      return 'mcp: ' + n;
+    },
+    oneditprepare: function () {
+      $('#node-input-transport').change(function () {
+        var t = $(this).val();
+        $('#node-input-row-stdio').toggle(t === 'stdio');
+        $('#node-input-row-sse').toggle(t === 'sse');
+      });
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="langchain-mcp-client">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-transport"><i class="fa fa-exchange"></i> Transport</label>
+    <select id="node-input-transport">
+      <option value="stdio">stdio</option>
+      <option value="sse">SSE</option>
+    </select>
+  </div>
+  <div class="form-row" id="node-input-row-stdio">
+    <label for="node-input-command"><i class="fa fa-terminal"></i> Command</label>
+    <input type="text" id="node-input-command" placeholder="npx">
+  </div>
+  <div class="form-row" id="node-input-row-stdio">
+    <label for="node-input-args"><i class="fa fa-list"></i> Args (one per line)</label>
+    <textarea id="node-input-args" style="width:100%;height:80px;font-family:monospace"></textarea>
+  </div>
+  <div class="form-row" id="node-input-row-stdio">
+    <label for="node-input-envPairs"><i class="fa fa-cog"></i> Env (KEY=VALUE per line)</label>
+    <textarea id="node-input-envPairs" style="width:100%;height:60px;font-family:monospace"></textarea>
+  </div>
+  <div class="form-row" id="node-input-row-sse" style="display:none">
+    <label for="node-input-sseUrl"><i class="fa fa-link"></i> SSE URL</label>
+    <input type="text" id="node-input-sseUrl" placeholder="https://mcp.example.com/sse">
+  </div>
+  <div class="form-row">
+    <label for="node-input-includeFilter"><i class="fa fa-filter"></i> Tool name allowlist</label>
+    <input type="text" id="node-input-includeFilter" placeholder="search,fetch">
+  </div>
+  <div class="form-tips">
+    Each MCP tool is exposed to the agent as <code>mcp_&lt;name&gt;</code>.
+  </div>
+</script>

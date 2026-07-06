@@ -1,0 +1,145 @@
+<script type="text/javascript">
+  RED.nodes.registerType('langchain-config', {
+    category: 'config',
+    color: '#a4c2f4',
+    defaults: {
+      provider: { value: 'openai' },
+      model: { value: 'gpt-4o-mini' },
+      temperature: { value: '0' },
+      baseUrl: { value: '' },
+      authType: { value: 'apiKey' },
+      oauth2Provider: { value: '' },
+      oauth2ClientId: { value: '' },
+      oauth2RedirectUri: { value: '' }
+    },
+    credentials: {
+      apiKey: { type: 'password' },
+      oauth2ClientSecret: { type: 'password' }
+    },
+    label: function () {
+      var m = this.model || 'gpt-4o-mini';
+      var p = this.provider || 'openai';
+      var a = this.authType === 'oauth2' ? ' [OAuth2]' : '';
+      return 'LangChain: ' + p + ' / ' + m + a;
+    },
+    oneditprepare: function () {
+      var self = this;
+      // Pre-populate OAuth2 provider list from the runtime metadata endpoint
+      $.getJSON('langchain-agent/oauth/providers').done(function (data) {
+        var sel = $('#node-config-input-oauth2Provider');
+        sel.empty();
+        sel.append($('<option></option>').attr('value', '').text('— pick a provider —'));
+        Object.keys(data).forEach(function (k) {
+          sel.append($('<option></option>').attr('value', k).text(data[k].label));
+        });
+        if (self.oauth2Provider) sel.val(self.oauth2Provider);
+      });
+
+      function refreshAuthUi() {
+        var t = $('#node-config-input-authType').val();
+        $('#node-config-input-apiKey').parent().toggle(t === 'apiKey');
+        $('#node-config-row-oauth2Provider').toggle(t === 'oauth2');
+        $('#node-config-row-oauth2ClientId').toggle(t === 'oauth2');
+        $('#node-config-row-oauth2ClientSecret').toggle(t === 'oauth2');
+        $('#node-config-row-oauth2RedirectUri').toggle(t === 'oauth2');
+        $('#node-config-row-oauth2Authorize').toggle(t === 'oauth2');
+      }
+      $('#node-config-input-authType').change(refreshAuthUi);
+      refreshAuthUi();
+
+      // The "Authorize" button hits the runtime endpoint and pops up the
+      // provider's auth page. We poll status after the popup closes
+      $('#node-config-input-oauth2Authorize').click(function (e) {
+        e.preventDefault();
+        var id = self.id;
+        $.getJSON('langchain-agent/oauth/' + id + '/start')
+          .done(function (data) {
+            if (!data.redirectUrl) return;
+            var w = window.open(data.redirectUrl, 'oauth', 'width=600,height=700');
+            if (!w) {
+              alert('Popup blocked. Allow popups for the Node-RED editor.');
+              return;
+            }
+            var poll = setInterval(function () {
+              if (w.closed) {
+                clearInterval(poll);
+                $.getJSON('langchain-agent/oauth/' + id + '/status').done(function (s) {
+                  if (s.authorized) {
+                    RED.notify('OAuth2 authorization complete', 'success');
+                  } else {
+                    RED.notify('OAuth2 flow ended without authorization', 'warn');
+                  }
+                });
+              }
+            }, 800);
+          })
+          .fail(function (xhr) {
+            RED.notify('OAuth2 start failed: ' + (xhr.responseJSON && xhr.responseJSON.error || xhr.statusText), 'error');
+          });
+      });
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="langchain-config">
+  <div class="form-row">
+    <label for="node-config-input-provider"><i class="fa fa-server"></i> Provider</label>
+    <select id="node-config-input-provider">
+      <option value="openai">OpenAI (or OpenAI-compatible)</option>
+      <option value="anthropic">Anthropic</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-model"><i class="fa fa-cube"></i> Model</label>
+    <input type="text" id="node-config-input-model" placeholder="gpt-4o-mini">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-temperature"><i class="fa fa-thermometer-half"></i> Temperature</label>
+    <input type="text" id="node-config-input-temperature" placeholder="0">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-baseUrl"><i class="fa fa-link"></i> Base URL (OpenAI-compatible)</label>
+    <input type="text" id="node-config-input-baseUrl" placeholder="https://api.openai.com/v1">
+  </div>
+
+  <hr>
+  <div class="form-row">
+    <label for="node-config-input-authType"><i class="fa fa-shield"></i> Auth</label>
+    <select id="node-config-input-authType">
+      <option value="apiKey">API key</option>
+      <option value="oauth2">OAuth2</option>
+    </select>
+  </div>
+
+  <div class="form-row">
+    <label for="node-config-input-apiKey"><i class="fa fa-key"></i> API key</label>
+    <input type="password" id="node-config-input-apiKey">
+  </div>
+
+  <div class="form-row" id="node-config-row-oauth2Provider">
+    <label for="node-config-input-oauth2Provider"><i class="fa fa-plug"></i> OAuth2 provider</label>
+    <select id="node-config-input-oauth2Provider"></select>
+  </div>
+  <div class="form-row" id="node-config-row-oauth2ClientId">
+    <label for="node-config-input-oauth2ClientId"><i class="fa fa-id-card"></i> Client ID</label>
+    <input type="text" id="node-config-input-oauth2ClientId">
+  </div>
+  <div class="form-row" id="node-config-row-oauth2ClientSecret">
+    <label for="node-config-input-oauth2ClientSecret"><i class="fa fa-key"></i> Client secret</label>
+    <input type="password" id="node-config-input-oauth2ClientSecret">
+  </div>
+  <div class="form-row" id="node-config-row-oauth2RedirectUri">
+    <label for="node-config-input-oauth2RedirectUri"><i class="fa fa-link"></i> Redirect URI (optional)</label>
+    <input type="text" id="node-config-input-oauth2RedirectUri" placeholder="auto if empty">
+  </div>
+  <div class="form-row" id="node-config-row-oauth2Authorize">
+    <label>&nbsp;</label>
+    <button id="node-config-input-oauth2Authorize" class="red-ui-button">
+      <i class="fa fa-sign-in"></i> Authorize via OAuth2
+    </button>
+  </div>
+  <div class="form-tips">
+    After clicking <b>Authorize</b>, complete the provider's consent screen
+    in the popup. The config node will then hold bearer + refresh tokens.
+  </div>
+</script>

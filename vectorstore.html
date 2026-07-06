@@ -1,0 +1,51 @@
+<script type="text/javascript">
+  RED.nodes.registerType('langchain-vectorstore', {
+    category: 'langchain',
+    color: '#fff2a8',
+    defaults: {
+      name: { value: '' },
+      collection: { value: 'default', required: true },
+      chunkSize: { value: 1000, validate: RED.validators.number() },
+      chunkOverlap: { value: 200, validate: RED.validators.number() },
+      k: { value: 4, validate: RED.validators.number() },
+      llmNode: { value: '', type: 'langchain-chat-model' }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-database',
+    label: function () {
+      return this.name || ('vs: ' + (this.collection || 'default'));
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="langchain-vectorstore">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-collection"><i class="fa fa-folder"></i> Collection</label>
+    <input type="text" id="node-input-collection" placeholder="default">
+  </div>
+  <div class="form-row">
+    <label for="node-input-chunkSize"><i class="fa fa-cut"></i> Chunk size</label>
+    <input type="text" id="node-input-chunkSize">
+  </div>
+  <div class="form-row">
+    <label for="node-input-chunkOverlap"><i class="fa fa-cut"></i> Chunk overlap</label>
+    <input type="text" id="node-input-chunkOverlap">
+  </div>
+  <div class="form-row">
+    <label for="node-input-k"><i class="fa fa-search"></i> Top-K</label>
+    <input type="text" id="node-input-k">
+  </div>
+  <div class="form-row">
+    <label for="node-input-llmNode"><i class="fa fa-cube"></i> Embedding model</label>
+    <input type="text" id="node-input-llmNode">
+  </div>
+  <div class="form-tips">
+    To add documents: send <code>msg.payload = {action:"add", document:"..."}</code> (or <code>documents:[...]</code>).
+    Otherwise the node pushes a <code>{collection}_search</code> tool onto <code>msg.langchain.tools</code>.
+  </div>
+</script>
